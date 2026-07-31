@@ -1,6 +1,6 @@
 #!/usr/bin/env perl
 # REAPER (.rpp) <-> Logic Pro (FCPXML) Converter Engine in Perl
-# Robust audio item layout extraction & FCPXML 1.9 timeline generator for Apple Logic Pro
+# 2-Step Selection Support: Explicit Audio Folder + RPP File -> Logic Pro Output
 
 use strict;
 use warnings;
@@ -9,64 +9,57 @@ use File::Copy;
 use File::Path qw(make_path);
 use Cwd 'abs_path';
 
-my $input = $ARGV[0];
-my $output = $ARGV[1];
+my $arg1 = $ARGV[0];
+my $arg2 = $ARGV[1];
+my $arg3 = $ARGV[2];
 
-if (!$input) {
-    print "Usage: daw_converter.pl <input_file_or_folder> [<output_path>]\n";
-    exit 1;
-}
-
-if (! -e $input) {
-    print "Error: Input '$input' not found.\n";
+if (!$arg1) {
+    print "Usage: daw_converter.pl <rpp_file_or_folder> [<audio_folder>] [<output_folder>]\n";
     exit 1;
 }
 
 my $rpp_file = "";
-my $in_dir = "";
+my $audio_dir = "";
+my $out_dir = "";
 
-if (-d $input) {
-    $in_dir = abs_path($input);
-    opendir(my $dh, $input) or die "Cannot open directory $input: $!";
-    my @rpp_files = grep { /\.rpp$/i } readdir($dh);
-    closedir($dh);
-
-    if (@rpp_files == 0) {
-        print "Error: No REAPER project (.rpp) file found inside directory '$input'\n";
-        exit 1;
+if (-f $arg1) {
+    $rpp_file = abs_path($arg1);
+    if ($arg2 && -d $arg2) {
+        $audio_dir = abs_path($arg2);
+        $out_dir = $arg3 || "";
+    } else {
+        $audio_dir = dirname($rpp_file);
+        $out_dir = $arg2 || "";
     }
-    $rpp_file = "$in_dir/$rpp_files[0]";
-} else {
-    $rpp_file = abs_path($input);
-    $in_dir = dirname($rpp_file);
+} elsif (-d $arg1) {
+    $audio_dir = abs_path($arg1);
+    if ($arg2 && -f $arg2) {
+        $rpp_file = abs_path($arg2);
+        $out_dir = $arg3 || "";
+    } else {
+        # Find .rpp file in audio directory
+        opendir(my $dh, $audio_dir) or die "Cannot open directory $audio_dir: $!";
+        my @rpp_files = grep { /\.rpp$/i } readdir($dh);
+        closedir($dh);
+
+        if (@rpp_files == 0) {
+            print "Error: No REAPER project (.rpp) file found inside directory '$audio_dir'\n";
+            exit 1;
+        }
+        $rpp_file = "$audio_dir/$rpp_files[0]";
+        $out_dir = $arg2 || "";
+    }
 }
 
 my ($filename, $dirs, $suffix) = fileparse($rpp_file, qr/\.[^.]*/);
+$out_dir ||= "$audio_dir/${filename}_LogicPro";
 
-$output ||= "$in_dir/${filename}_LogicPro";
-
-if ($output =~ /\.fcpxml$/i) {
-    convert_rpp_to_fcpxml($rpp_file, $in_dir, $output, $filename);
-} else {
-    package_rpp_to_logic_folder($rpp_file, $in_dir, $output, $filename);
-}
-
-sub convert_rpp_to_fcpxml {
-    my ($in_rpp, $proj_dir, $out_xml, $proj_name) = @_;
-
-    my $session = parse_rpp($in_rpp);
-
-    open my $out, '>:encoding(UTF-8)', $out_xml or die "Could not write $out_xml: $!";
-    print $out get_fcpxml_str($session, $proj_dir, $proj_name);
-    close $out;
-
-    print "✓ Successfully generated Logic Pro FCPXML: '$out_xml'\n";
-}
+package_rpp_to_logic_folder($rpp_file, $audio_dir, $out_dir, $filename);
 
 sub package_rpp_to_logic_folder {
-    my ($in_rpp, $proj_dir, $out_dir, $proj_name) = @_;
+    my ($in_rpp, $proj_dir, $out_path, $proj_name) = @_;
 
-    my $media_dir = "$out_dir/Media/Audio Files";
+    my $media_dir = "$out_path/Media/Audio Files";
     make_path($media_dir);
 
     my $session = parse_rpp($in_rpp);
@@ -107,24 +100,25 @@ sub package_rpp_to_logic_folder {
     }
 
     # Generate FCPXML inside output directory with valid file:/// URIs
-    my $fcpxml_path = "$out_dir/Session.fcpxml";
+    my $fcpxml_path = "$out_path/Session.fcpxml";
     open my $out, '>:encoding(UTF-8)', $fcpxml_path or die "Could not write $fcpxml_path: $!";
-    print $out get_fcpxml_str($session, $out_dir, $proj_name);
+    print $out get_fcpxml_str($session, $out_path, $proj_name);
     close $out;
 
     # Open launcher script
-    my $launcher_path = "$out_dir/Open in Logic Pro.command";
+    my $launcher_path = "$out_path/Open in Logic Pro.command";
     open my $lout, '>:encoding(UTF-8)', $launcher_path;
     print $lout "#!/bin/bash\nDIR=\"\$( cd \"\$( dirname \"\${BASH_SOURCE[0]}\" )\" >/dev/null 2>&1 && pwd )\"\nopen -a \"Logic Pro\" \"\$DIR/Session.fcpxml\"\n";
     close $lout;
     chmod 0755, $launcher_path;
 
     # Instructions text file
-    my $readme_path = "$out_dir/How to Open in Logic Pro.txt";
+    my $readme_path = "$out_path/How to Open in Logic Pro.txt";
     open my $rout, '>:encoding(UTF-8)', $readme_path;
     print $rout "REAPER to Logic Pro Converted Project Folder\n";
     print $rout "=============================================\n\n";
     print $rout "Project Name: $proj_name\n";
+    print $rout "Audio Folder Source: $proj_dir\n";
     print $rout "Tracks Count: " . scalar(@{$session->{tracks}}) . "\n\n";
     print $rout "To open this project in Logic Pro:\n";
     print $rout " 1. Double-click 'Open in Logic Pro.command' in this folder.\n";
@@ -133,7 +127,7 @@ sub package_rpp_to_logic_folder {
     print $rout "All audio files are bundled inside 'Media/Audio Files/'.\n";
     close $rout;
 
-    print "🎉 Successfully created Logic Pro project folder: '$out_dir'\n";
+    print "🎉 Successfully created Logic Pro project folder: '$out_path'\n";
     print "   Tracks: " . scalar(@{$session->{tracks}}) . " | Audio Files Bundled: $copied_count\n";
 }
 
