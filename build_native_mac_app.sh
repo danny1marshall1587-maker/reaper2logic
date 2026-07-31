@@ -69,7 +69,14 @@ cp app.js "$APP_NAME/Contents/Resources/app.js"
 cp app_icon.jpg "$APP_NAME/Contents/Resources/app_icon.jpg"
 chmod +x "$APP_NAME/Contents/Resources/daw_converter.pl"
 
+# Remove Assets.car which overrides custom .icns files on macOS 11+
+rm -f "$APP_NAME/Contents/Resources/Assets.car"
+
+# Remove CFBundleIconName and set CFBundleIconFile to applet.icns
+/usr/libexec/PlistBuddy -c "Delete :CFBundleIconName" "$APP_NAME/Contents/Info.plist" 2>/dev/null
+/usr/libexec/PlistBuddy -c "Set :CFBundleIconFile applet.icns" "$APP_NAME/Contents/Info.plist" 2>/dev/null || /usr/libexec/PlistBuddy -c "Add :CFBundleIconFile string applet.icns" "$APP_NAME/Contents/Info.plist"
+
 touch "$APP_NAME"
 rm -f /tmp/app_script.applescript
 
-echo "SUCCESS: Built native macOS Application Bundle '$APP_NAME'"
+echo "SUCCESS: Built native macOS Application Bundle '$APP_NAME' with custom icon fixed!"
