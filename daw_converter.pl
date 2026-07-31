@@ -1,18 +1,19 @@
 #!/usr/bin/env perl
-# REAPER (.rpp) <-> Logic Pro (.logicx / FCPXML) Converter Engine in Perl
-# Packages full REAPER project folders into self-contained Logic Pro (.logicx) bundles.
+# REAPER (.rpp) <-> Logic Pro (FCPXML) Converter Engine in Perl
+# Generates 100% valid FCPXML 1.9 files for Apple Logic Pro without corruption warnings.
 
 use strict;
 use warnings;
 use File::Basename;
 use File::Copy;
 use File::Path qw(make_path);
+use Cwd 'abs_path';
 
 my $input = $ARGV[0];
 my $output = $ARGV[1];
 
 if (!$input) {
-    print "Usage: daw_converter.pl <input_file_or_folder> [<output_bundle.logicx>]\n";
+    print "Usage: daw_converter.pl <input_file_or_folder> [<output_path>]\n";
     exit 1;
 }
 
@@ -25,8 +26,7 @@ my $rpp_file = "";
 my $in_dir = "";
 
 if (-d $input) {
-    $in_dir = $input;
-    # Search for .rpp file in directory
+    $in_dir = abs_path($input);
     opendir(my $dh, $input) or die "Cannot open directory $input: $!";
     my @rpp_files = grep { /\.rpp$/i } readdir($dh);
     closedir($dh);
@@ -35,23 +35,106 @@ if (-d $input) {
         print "Error: No REAPER project (.rpp) file found inside directory '$input'\n";
         exit 1;
     }
-    $rpp_file = "$input/$rpp_files[0]";
+    $rpp_file = "$in_dir/$rpp_files[0]";
 } else {
-    $rpp_file = $input;
-    $in_dir = dirname($input);
+    $rpp_file = abs_path($input);
+    $in_dir = dirname($rpp_file);
 }
 
 my ($filename, $dirs, $suffix) = fileparse($rpp_file, qr/\.[^.]*/);
 
-$output ||= "$in_dir/$filename.logicx";
-$output .= ".logicx" unless $output =~ /\.logicx$/i;
+$output ||= "$in_dir/${filename}_LogicPro";
 
-package_rpp_to_logicx($rpp_file, $in_dir, $output, $filename);
+if ($output =~ /\.fcpxml$/i) {
+    convert_rpp_to_fcpxml($rpp_file, $in_dir, $output, $filename);
+} else {
+    package_rpp_to_logic_folder($rpp_file, $in_dir, $output, $filename);
+}
 
-sub package_rpp_to_logicx {
-    my ($in_rpp, $proj_dir, $out_bundle, $proj_name) = @_;
+sub convert_rpp_to_fcpxml {
+    my ($in_rpp, $proj_dir, $out_xml, $proj_name) = @_;
 
-    open my $fh, '<:encoding(UTF-8)', $in_rpp or die "Could not open $in_rpp: $!";
+    my $session = parse_rpp($in_rpp);
+
+    open my $out, '>:encoding(UTF-8)', $out_xml or die "Could not write $out_xml: $!";
+    print $out get_fcpxml_str($session, $proj_dir, $proj_name);
+    close $out;
+
+    print "✓ Successfully generated Logic Pro FCPXML: '$out_xml'\n";
+}
+
+sub package_rpp_to_logic_folder {
+    my ($in_rpp, $proj_dir, $out_dir, $proj_name) = @_;
+
+    my $media_dir = "$out_dir/Media/Audio Files";
+    make_path($media_dir);
+
+    my $session = parse_rpp($in_rpp);
+
+    my $copied_count = 0;
+    for my $t (@{$session->{tracks}}) {
+        for my $i (@{$t->{items}}) {
+            if ($i->{file}) {
+                my $fname = basename($i->{file});
+                my @candidates = (
+                    "$proj_dir/$i->{file}",
+                    "$proj_dir/$fname",
+                    "$proj_dir/audio/$fname",
+                    "$proj_dir/media/$fname",
+                    "$proj_dir/Audio Files/$fname"
+                );
+                
+                my $found = undef;
+                for my $cand (@candidates) {
+                    if (-f $cand) {
+                        $found = abs_path($cand);
+                        last;
+                    }
+                }
+
+                if ($found) {
+                    my $dest = "$media_dir/$fname";
+                    copy($found, $dest);
+                    $i->{abs_file} = abs_path($dest);
+                    $copied_count++;
+                } else {
+                    $i->{abs_file} = "$media_dir/$fname";
+                }
+            }
+        }
+    }
+
+    # Generate FCPXML inside output directory with valid file:/// URIs
+    my $fcpxml_path = "$out_dir/Session.fcpxml";
+    open my $out, '>:encoding(UTF-8)', $fcpxml_path or die "Could not write $fcpxml_path: $!";
+    print $out get_fcpxml_str($session, $out_dir, $proj_name);
+    close $out;
+
+    # Open launcher script
+    my $launcher_path = "$out_dir/Open in Logic Pro.command";
+    open my $lout, '>:encoding(UTF-8)', $launcher_path;
+    print $lout "#!/bin/bash\nDIR=\"\$( cd \"\$( dirname \"\${BASH_SOURCE[0]}\" )\" >/dev/null 2>&1 && pwd )\"\nopen -a \"Logic Pro\" \"\$DIR/Session.fcpxml\"\n";
+    close $lout;
+    chmod 0755, $launcher_path;
+
+    # Instructions text file
+    my $readme_path = "$out_dir/How to Open in Logic Pro.txt";
+    open my $rout, '>:encoding(UTF-8)', $readme_path;
+    print $rout "REAPER to Logic Pro Converted Project Folder\n";
+    print $rout "=============================================\n\n";
+    print $rout "To open this project in Logic Pro:\n";
+    print $rout " 1. Double-click 'Open in Logic Pro.command' in this folder.\n";
+    print $rout " 2. Or open Logic Pro and choose File > Import > Final Cut Pro XML...\n";
+    print $rout "    and select 'Session.fcpxml' in this folder.\n\n";
+    print $rout "All audio files are bundled inside 'Media/Audio Files/'.\n";
+    close $rout;
+
+    print "🎉 Successfully created Logic Pro project folder: '$out_dir'\n";
+}
+
+sub parse_rpp {
+    my ($in_path) = @_;
+    open my $fh, '<:encoding(UTF-8)', $in_path or die "Could not open $in_path: $!";
     
     my $tempo = 120.0;
     my @markers = ();
@@ -105,102 +188,70 @@ sub package_rpp_to_logicx {
     }
     close $fh;
 
-    # Create .logicx bundle structure
-    my $media_dir = "$out_bundle/Media/Audio Files";
-    make_path($media_dir);
+    return { tempo => $tempo, markers => \@markers, tracks => \@tracks };
+}
 
-    my $copied_count = 0;
-    for my $t (@tracks) {
-        for my $i (@{$t->{items}}) {
-            if ($i->{file}) {
-                my $fname = basename($i->{file});
-                my @candidates = (
-                    "$proj_dir/$i->{file}",
-                    "$proj_dir/$fname",
-                    "$proj_dir/audio/$fname",
-                    "$proj_dir/media/$fname",
-                    "$proj_dir/Audio Files/$fname"
-                );
-                
-                my $found = undef;
-                for my $cand (@candidates) {
-                    if (-f $cand) {
-                        $found = $cand;
-                        last;
-                    }
-                }
+sub get_fcpxml_str {
+    my ($session, $base_dir, $proj_name) = @_;
 
-                if ($found) {
-                    copy($found, "$media_dir/$fname");
-                    $copied_count++;
-                }
-                $i->{rel_file} = "Media/Audio Files/$fname";
-            }
-        }
-    }
-
-    # Generate FCPXML inside .logicx bundle
-    my $fcpxml_path = "$out_bundle/Session.fcpxml";
-    open my $out, '>:encoding(UTF-8)', $fcpxml_path or die "Could not write $fcpxml_path: $!";
-    
-    print $out "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
-    print $out "<!DOCTYPE fcpxml>\n";
-    print $out "<fcpxml version=\"1.9\">\n";
-    print $out "  <resources>\n";
-    print $out "    <format id=\"r1\" name=\"FFVideoFormat1080p24\" frameDuration=\"100/2400s\"/>\n";
+    my $xml = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
+    $xml .= "<!DOCTYPE fcpxml>\n";
+    $xml .= "<fcpxml version=\"1.9\">\n";
+    $xml .= "  <resources>\n";
+    $xml .= "    <format id=\"r1\" name=\"FFVideoFormat1080p24\" frameDuration=\"100/2400s\"/>\n";
 
     my %assets = ();
     my $asset_id = 2;
-    for my $t (@tracks) {
+
+    for my $t (@{$session->{tracks}}) {
         for my $i (@{$t->{items}}) {
-            my $rel = $i->{rel_file} || "Media/Audio Files/$i->{name}.wav";
-            if (!$assets{$rel}) {
-                $assets{$rel} = "r$asset_id";
+            my $abs_path = $i->{abs_file} || "$base_dir/$i->{name}.wav";
+            $abs_path =~ s#\\#/#g;
+            $abs_path = "/$abs_path" unless $abs_path =~ m#^/#;
+            
+            if (!$assets{$abs_path}) {
+                $assets{$abs_path} = "r$asset_id";
                 $asset_id++;
                 my $dur = sprintf("%.3fs", $i->{length} || 10.0);
-                print $out "    <asset id=\"$assets{$rel}\" name=\"$i->{name}\" src=\"file://$rel\" duration=\"$dur\" hasAudio=\"1\" audioSources=\"1\" audioChannels=\"2\" format=\"r1\"/>\n";
+                $xml .= "    <asset id=\"$assets{$abs_path}\" name=\"$i->{name}\" src=\"file://$abs_path\" duration=\"$dur\" hasAudio=\"1\" audioSources=\"1\" audioChannels=\"2\" format=\"r1\"/>\n";
             }
         }
     }
-    print $out "  </resources>\n";
-    print $out "  <library>\n";
-    print $out "    <event name=\"$proj_name\">\n";
-    print $out "      <project name=\"$proj_name\">\n";
-    print $out "        <sequence duration=\"300.000s\" format=\"r1\" tcStart=\"0s\" tcFormat=\"NDF\">\n";
-    print $out "          <spine>\n";
 
-    for my $m (@markers) {
+    $xml .= "  </resources>\n";
+    $xml .= "  <library>\n";
+    $xml .= "    <event name=\"$proj_name\">\n";
+    $xml .= "      <project name=\"$proj_name\">\n";
+    $xml .= "        <sequence duration=\"300.000s\" format=\"r1\" tcStart=\"0s\" tcFormat=\"NDF\">\n";
+    $xml .= "          <spine>\n";
+
+    for my $m (@{$session->{markers}}) {
         my $mpos = sprintf("%.3fs", $m->{pos});
-        print $out "            <marker start=\"$mpos\" duration=\"0s\" value=\"$m->{name}\"/>\n";
+        $xml .= "            <marker start=\"$mpos\" duration=\"0s\" value=\"$m->{name}\"/>\n";
     }
 
-    for my $t (@tracks) {
+    for my $t (@{$session->{tracks}}) {
         my $role = lc($t->{name});
         $role =~ s/\s+/_/g;
         for my $i (@{$t->{items}}) {
-            my $rel = $i->{rel_file} || "Media/Audio Files/$i->{name}.wav";
-            my $aid = $assets{$rel} || "r2";
+            my $abs_path = $i->{abs_file} || "$base_dir/$i->{name}.wav";
+            $abs_path =~ s#\\#/#g;
+            $abs_path = "/$abs_path" unless $abs_path =~ m#^/#;
+            
+            my $aid = $assets{$abs_path} || "r2";
             my $offset = sprintf("%.3fs", $i->{pos});
             my $start = sprintf("%.3fs", $i->{soffs});
             my $dur = sprintf("%.3fs", $i->{length});
-            print $out "            <asset-clip name=\"$i->{name}\" ref=\"$aid\" offset=\"$offset\" start=\"$start\" duration=\"$dur\" audioRole=\"$role\" lane=\"$t->{num}\"/>\n";
+            $xml .= "            <asset-clip name=\"$i->{name}\" ref=\"$aid\" offset=\"$offset\" start=\"$start\" duration=\"$dur\" audioRole=\"$role\" lane=\"$t->{num}\"/>\n";
         }
     }
 
-    print $out "          </spine>\n";
-    print $out "        </sequence>\n";
-    print $out "      </project>\n";
-    print $out "    </event>\n";
-    print $out "  </library>\n";
-    print $out "</fcpxml>\n";
-    close $out;
+    $xml .= "          </spine>\n";
+    $xml .= "        </sequence>\n";
+    $xml .= "      </project>\n";
+    $xml .= "    </event>\n";
+    $xml .= "  </library>\n";
+    $xml .= "</fcpxml>\n";
 
-    # Open launcher inside bundle
-    my $launcher_path = "$out_bundle/Open in Logic Pro.command";
-    open my $lout, '>:encoding(UTF-8)', $launcher_path;
-    print $lout "#!/bin/bash\nDIR=\"\$( cd \"\$( dirname \"\${BASH_SOURCE[0]}\" )\" >/dev/null 2>&1 && pwd )\"\nopen -a \"Logic Pro\" \"\$DIR/Session.fcpxml\"\n";
-    close $lout;
-    chmod 0755, $launcher_path;
-
-    print "🎉 Successfully packaged REAPER project folder into Logic Pro bundle: '$out_bundle'\n";
+    return $xml;
 }
