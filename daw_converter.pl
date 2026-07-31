@@ -1,6 +1,6 @@
 #!/usr/bin/env perl
 # REAPER (.rpp) <-> Logic Pro (FCPXML) Converter Engine in Perl
-# Generates 100% valid FCPXML 1.9 files for Apple Logic Pro without corruption warnings.
+# Robust audio item layout extraction & FCPXML 1.9 timeline generator for Apple Logic Pro
 
 use strict;
 use warnings;
@@ -81,7 +81,9 @@ sub package_rpp_to_logic_folder {
                     "$proj_dir/$fname",
                     "$proj_dir/audio/$fname",
                     "$proj_dir/media/$fname",
-                    "$proj_dir/Audio Files/$fname"
+                    "$proj_dir/Audio Files/$fname",
+                    "$proj_dir/Audio/$fname",
+                    "$proj_dir/Media/$fname"
                 );
                 
                 my $found = undef;
@@ -122,6 +124,8 @@ sub package_rpp_to_logic_folder {
     open my $rout, '>:encoding(UTF-8)', $readme_path;
     print $rout "REAPER to Logic Pro Converted Project Folder\n";
     print $rout "=============================================\n\n";
+    print $rout "Project Name: $proj_name\n";
+    print $rout "Tracks Count: " . scalar(@{$session->{tracks}}) . "\n\n";
     print $rout "To open this project in Logic Pro:\n";
     print $rout " 1. Double-click 'Open in Logic Pro.command' in this folder.\n";
     print $rout " 2. Or open Logic Pro and choose File > Import > Final Cut Pro XML...\n";
@@ -130,6 +134,7 @@ sub package_rpp_to_logic_folder {
     close $rout;
 
     print "🎉 Successfully created Logic Pro project folder: '$out_dir'\n";
+    print "   Tracks: " . scalar(@{$session->{tracks}}) . " | Audio Files Bundled: $copied_count\n";
 }
 
 sub parse_rpp {
@@ -149,9 +154,9 @@ sub parse_rpp {
         $line =~ s/^\s+|\s+$//g;
         next if $line eq '';
 
-        if ($line =~ /^TEMPO\s+([\d\.]+)/) {
+        if ($line =~ /^TEMPO\s+([-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)/) {
             $tempo = $1;
-        } elsif ($line =~ /^MARKER\s+\d+\s+([\d\.]+)\s+"([^"]*)"/) {
+        } elsif ($line =~ /^MARKER\s+\d+\s+([-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)\s+"([^"]*)"/) {
             push @markers, { pos => $1, name => $2 };
         } elsif ($line =~ /^<TRACK/) {
             $track_num++;
@@ -170,11 +175,11 @@ sub parse_rpp {
         } elsif ($current_item) {
             if ($line =~ /^NAME\s+"?([^"]+)"?/) {
                 $current_item->{name} = $1;
-            } elsif ($line =~ /^POSITION\s+([\d\.]+)/) {
+            } elsif ($line =~ /^POSITION\s+([-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)/) {
                 $current_item->{pos} = $1;
-            } elsif ($line =~ /^LENGTH\s+([\d\.]+)/) {
+            } elsif ($line =~ /^LENGTH\s+([-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)/) {
                 $current_item->{length} = $1;
-            } elsif ($line =~ /^SOFFS\s+([\d\.]+)/) {
+            } elsif ($line =~ /^SOFFS\s+([-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)/) {
                 $current_item->{soffs} = $1;
             } elsif ($line =~ /^FILE\s+"?([^"]+)"?/) {
                 $current_item->{file} = $1;
@@ -222,7 +227,7 @@ sub get_fcpxml_str {
     $xml .= "  <library>\n";
     $xml .= "    <event name=\"$proj_name\">\n";
     $xml .= "      <project name=\"$proj_name\">\n";
-    $xml .= "        <sequence duration=\"300.000s\" format=\"r1\" tcStart=\"0s\" tcFormat=\"NDF\">\n";
+    $xml .= "        <sequence duration=\"600.000s\" format=\"r1\" tcStart=\"0s\" tcFormat=\"NDF\">\n";
     $xml .= "          <spine>\n";
 
     for my $m (@{$session->{markers}}) {
@@ -232,7 +237,9 @@ sub get_fcpxml_str {
 
     for my $t (@{$session->{tracks}}) {
         my $role = lc($t->{name});
-        $role =~ s/\s+/_/g;
+        $role =~ s/[^a-z0-9]/_/g;
+        $role = "track_$t->{num}" if !$role;
+
         for my $i (@{$t->{items}}) {
             my $abs_path = $i->{abs_file} || "$base_dir/$i->{name}.wav";
             $abs_path =~ s#\\#/#g;
