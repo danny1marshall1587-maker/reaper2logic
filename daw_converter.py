@@ -1,79 +1,104 @@
 #!/usr/bin/env python3
 """
-REAPER (.rpp) <-> Logic Pro (FCPXML) Project Converter CLI
+REAPER (.rpp) <-> Logic Pro (.logicx / FCPXML) Project Converter CLI
+Packages full REAPER project folders into self-contained Logic Pro (.logicx) bundles.
 """
 
 import sys
 import os
+import shutil
+import stat
 import argparse
 from rpp_parser import RPPParser, RPPGenerator
 from fcpxml_parser import FCPXMLParser, FCPXMLGenerator
 
-def convert_rpp_to_logic(rpp_path: str, output_path: str):
+def convert_rpp_to_logicx(rpp_path: str, output_path: str = None):
+    rpp_path = os.path.abspath(rpp_path)
+    rpp_dir = os.path.dirname(rpp_path)
+    proj_name = os.path.splitext(os.path.basename(rpp_path))[0]
+
+    if not output_path:
+        output_path = os.path.join(rpp_dir, f"{proj_name}.logicx")
+    else:
+        output_path = os.path.abspath(output_path)
+        if not output_path.endswith(".logicx"):
+            output_path += ".logicx"
+
     print(f"Reading REAPER project: {rpp_path}")
     with open(rpp_path, "r", encoding="utf-8", errors="ignore") as f:
         content = f.read()
 
     parser = RPPParser(content)
     session = parser.parse()
-    session.name = os.path.splitext(os.path.basename(rpp_path))[0]
+    session.name = proj_name
 
-    print(f"Parsed project '{session.name}': {len(session.tracks)} tracks, {len(session.markers)} markers, tempo {session.tempo} BPM")
+    # Create .logicx bundle structure
+    media_dir = os.path.join(output_path, "Media", "Audio Files")
+    os.makedirs(media_dir, exist_ok=True)
 
+    print(f"Packaging project '{session.name}' into '{os.path.basename(output_path)}'...")
+    copied_files = 0
+
+    for track in session.tracks:
+        for item in track.items:
+            if item.source_file:
+                # Find full path of audio file
+                candidate_paths = [
+                    os.path.join(rpp_dir, item.source_file),
+                    os.path.join(rpp_dir, os.path.basename(item.source_file)),
+                    os.path.join(rpp_dir, "audio", os.path.basename(item.source_file)),
+                    os.path.join(rpp_dir, "media", os.path.basename(item.source_file))
+                ]
+                
+                src_found = None
+                for cand in candidate_paths:
+                    if os.path.exists(cand) and os.path.isfile(cand):
+                        src_found = cand
+                        break
+
+                if src_found:
+                    filename = os.path.basename(src_found)
+                    dest_file = os.path.join(media_dir, filename)
+                    if not os.path.exists(dest_file):
+                        shutil.copy2(src_found, dest_file)
+                        copied_files += 1
+                    item.source_file = f"Media/Audio Files/{filename}"
+                else:
+                    filename = os.path.basename(item.source_file)
+                    item.source_file = f"Media/Audio Files/{filename}"
+
+    # Generate FCPXML timeline XML inside bundle
+    fcpxml_path = os.path.join(output_path, "Session.fcpxml")
     fcpxml_content = FCPXMLGenerator.generate(session)
-    with open(output_path, "w", encoding="utf-8") as f:
+    with open(fcpxml_path, "w", encoding="utf-8") as f:
         f.write(fcpxml_content)
 
-    print(f"Successfully generated Logic Pro FCPXML file: {output_path}")
+    # Create Open in Logic Pro script inside bundle
+    launcher_path = os.path.join(output_path, "Open in Logic Pro.command")
+    with open(launcher_path, "w", encoding="utf-8") as f:
+        f.write('#!/bin/bash\nDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"\nopen -a "Logic Pro" "$DIR/Session.fcpxml"\n')
+    
+    st = os.stat(launcher_path)
+    os.chmod(launcher_path, st.st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
+
+    print(f"\n🎉 Successfully packaged REAPER project folder into Logic Pro bundle:")
+    print(f" Location: {output_path}")
+    print(f" Audio files bundled: {copied_files}")
     print("\nTo open in Logic Pro:")
-    print(" 1. Launch Logic Pro")
-    print(" 2. Select File > Import > Final Cut Pro XML...")
-    print(f" 3. Select '{os.path.basename(output_path)}'")
-
-
-def convert_logic_to_rpp(fcpxml_path: str, output_path: str):
-    print(f"Reading Logic Pro FCPXML: {fcpxml_path}")
-    with open(fcpxml_path, "r", encoding="utf-8", errors="ignore") as f:
-        content = f.read()
-
-    parser = FCPXMLParser(content)
-    session = parser.parse()
-    session.name = os.path.splitext(os.path.basename(fcpxml_path))[0]
-
-    print(f"Parsed project '{session.name}': {len(session.tracks)} tracks, {len(session.markers)} markers")
-
-    rpp_content = RPPGenerator.generate(session)
-    with open(output_path, "w", encoding="utf-8") as f:
-        f.write(rpp_content)
-
-    print(f"Successfully generated REAPER project file: {output_path}")
-    print("\nTo open in REAPER:")
-    print(f" Double-click or open '{os.path.basename(output_path)}' directly in REAPER.")
-
+    print(f" 1. Double-click '{os.path.join(os.path.basename(output_path), 'Open in Logic Pro.command')}'")
+    print(f" 2. Or open Logic Pro and choose File > Import > Final Cut Pro XML... and select '{os.path.basename(output_path)}/Session.fcpxml'")
 
 def main():
-    parser = argparse.ArgumentParser(description="Bidirectional REAPER <-> Logic Pro Project Converter")
-    parser.add_argument("input", help="Input file path (.rpp or .fcpxml)")
-    parser.add_argument("-o", "--output", help="Output file path (.fcpxml or .rpp)")
+    parser = argparse.ArgumentParser(description="Package REAPER project folder into Logic Pro (.logicx) bundle")
+    parser.add_argument("input", help="Input REAPER project file (.rpp)")
+    parser.add_argument("-o", "--output", help="Output Logic Pro bundle (.logicx)")
 
     args = parser.parse_args()
-    input_file = args.input
-
-    if not os.path.exists(input_file):
-        print(f"Error: Input file '{input_file}' not found.")
+    if not os.path.exists(args.input):
+        print(f"Error: Input file '{args.input}' not found.")
         sys.exit(1)
 
-    ext = os.path.splitext(input_file)[1].lower()
-
-    if ext == ".rpp":
-        output_file = args.output or os.path.splitext(input_file)[0] + ".fcpxml"
-        convert_rpp_to_logic(input_file, output_file)
-    elif ext in [".fcpxml", ".xml"]:
-        output_file = args.output or os.path.splitext(input_file)[0] + ".rpp"
-        convert_logic_to_rpp(input_file, output_file)
-    else:
-        print("Error: Input file must be a .rpp (REAPER) or .fcpxml/.xml (Logic Pro export) file.")
-        sys.exit(1)
+    convert_rpp_to_logicx(args.input, args.output)
 
 if __name__ == "__main__":
     main()
