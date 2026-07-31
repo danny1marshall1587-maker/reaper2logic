@@ -306,7 +306,7 @@ ${spineClips.join('\n')}
 }
 
 // ----------------------------------------------------
-// UI Controller
+// UI Controller & Save File Dialog Manager
 // ----------------------------------------------------
 document.addEventListener("DOMContentLoaded", () => {
   let currentMode = "rpp2logic";
@@ -345,15 +345,15 @@ document.addEventListener("DOMContentLoaded", () => {
     if (mode === "rpp2logic") {
       tabRpp.classList.add("active");
       tabLogic.classList.remove("active");
-      dropTitle.textContent = "Drop your REAPER project (.rpp) here";
-      dropSubtitle.textContent = "or click to browse files from your computer";
+      dropTitle.textContent = "Drop your REAPER project (.rpp) file here";
+      dropSubtitle.textContent = "or click to browse and select a file to convert";
       infoBoxTitle.textContent = "How REAPER to Logic Pro conversion works";
       infoBoxBody.innerHTML = "Parses your REAPER <code>.rpp</code> project into an Apple-compatible <strong>Final Cut Pro XML (.fcpxml)</strong>. In Logic Pro, select <code>File &gt; Import &gt; Final Cut Pro XML...</code> to load all tracks, audio items, sample alignment, gain, tempo maps, and markers!";
     } else {
       tabLogic.classList.add("active");
       tabRpp.classList.remove("active");
       dropTitle.textContent = "Drop your Logic Pro XML export (.fcpxml / .xml) here";
-      dropSubtitle.textContent = "or click to browse files from your computer";
+      dropSubtitle.textContent = "or click to browse and select a file to convert";
       infoBoxTitle.textContent = "How Logic Pro to REAPER conversion works";
       infoBoxBody.innerHTML = "In Logic Pro, choose <code>File &gt; Export &gt; Project to Final Cut Pro XML...</code>. Drop that file here to convert it into a native REAPER <code>.rpp</code> project!";
     }
@@ -432,9 +432,15 @@ document.addEventListener("DOMContentLoaded", () => {
       if (fileName.endsWith(".rpp")) {
         session = RPPParser.parse(content);
         session.name = fileName.replace(/\.rpp$/i, '');
+        currentMode = "rpp2logic";
+        tabRpp.classList.add("active");
+        tabLogic.classList.remove("active");
       } else if (fileName.endsWith(".fcpxml") || fileName.endsWith(".xml")) {
         session = FCPXMLGenerator.parse(content);
         session.name = fileName.replace(/\.(fcpxml|xml)$/i, '');
+        currentMode = "logic2rpp";
+        tabLogic.classList.add("active");
+        tabRpp.classList.remove("active");
       } else {
         alert("Please upload a valid .rpp or .fcpxml file.");
         return;
@@ -564,20 +570,49 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  // Export Buttons
-  btnExportPrimary.addEventListener("click", () => {
+  // Export & Save File Action with Native File Save Picker
+  async function saveFile(filename, content, mimeType) {
+    if ('showSaveFilePicker' in window) {
+      try {
+        const handle = await window.showSaveFilePicker({
+          suggestedName: filename,
+          types: [{
+            description: 'DAW Project File',
+            accept: { [mimeType]: [filename.endsWith('.fcpxml') ? '.fcpxml' : '.rpp'] }
+          }]
+        });
+        const writable = await handle.createWritable();
+        await writable.write(content);
+        await writable.close();
+        return;
+      } catch (err) {
+        if (err.name === 'AbortError') return; // User cancelled
+      }
+    }
+    
+    // Fallback standard download
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  btnExportPrimary.addEventListener("click", async () => {
     if (!activeSession) return;
 
     if (currentMode === "rpp2logic") {
       const xmlData = FCPXMLGenerator.generate(activeSession);
-      downloadFile(`${activeSession.name}.fcpxml`, xmlData, "application/xml");
+      await saveFile(`${activeSession.name}.fcpxml`, xmlData, "application/xml");
     } else {
       const rppData = RPPParser.generate(activeSession);
-      downloadFile(`${activeSession.name}.rpp`, rppData, "text/plain");
+      await saveFile(`${activeSession.name}.rpp`, rppData, "text/plain");
     }
   });
 
-  btnExportSummary.addEventListener("click", () => {
+  btnExportSummary.addEventListener("click", async () => {
     if (!activeSession) return;
     const summary = `DAW Project Conversion Summary
 =====================================
@@ -589,16 +624,6 @@ Markers      : ${activeSession.markers.length}
 Track Manifest:
 ` + activeSession.tracks.map(t => `- [${t.name}] : ${t.items.length} items`).join('\n');
 
-    downloadFile(`${activeSession.name}_summary.txt`, summary, "text/plain");
+    await saveFile(`${activeSession.name}_summary.txt`, summary, "text/plain");
   });
-
-  function downloadFile(filename, text, mimeType) {
-    const blob = new Blob([text], { type: mimeType });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
 });
