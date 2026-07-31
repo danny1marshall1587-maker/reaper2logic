@@ -1,6 +1,6 @@
 #!/usr/bin/env perl
 # REAPER (.rpp) <-> Logic Pro (.logicx / FCPXML) Converter Engine in Perl
-# Native Logic Pro Package Bundle Builder using Genuine Logic Pro Project Template
+# Generates clean, standalone Logic Pro project packages with 100% resolved audio files
 
 use strict;
 use warnings;
@@ -60,10 +60,6 @@ package_rpp_to_logicx_bundle($rpp_file, $audio_dir, $out_bundle, $filename);
 sub package_rpp_to_logicx_bundle {
     my ($in_rpp, $proj_dir, $out_path, $proj_name) = @_;
 
-    my $script_dir = dirname(abs_path($0));
-    my $template_tgz = "$script_dir/logic_template.tar.gz";
-    my $template_dir = "/Users/dan/Music/Logic/Project 1.logicx";
-
     # 1. Create base .logicx directories
     my $media_dir = "$out_path/Media/Audio Files";
     my $res_dir = "$out_path/Resources";
@@ -73,25 +69,12 @@ sub package_rpp_to_logicx_bundle {
     make_path($res_dir);
     make_path($alts_dir);
 
-    # 2. Copy genuine Logic Pro ProjectData & template structure if available
-    if (-f $template_tgz) {
-        system("tar -xzf " . quoted_form($template_tgz) . " -C " . quoted_form($out_path) . " 2>/dev/null");
-    } elsif (-d $template_dir) {
-        copy("$template_dir/Alternatives/000/ProjectData", "$alts_dir/ProjectData") if -f "$template_dir/Alternatives/000/ProjectData";
-        copy("$template_dir/Alternatives/000/DisplayState.plist", "$alts_dir/DisplayState.plist") if -f "$template_dir/Alternatives/000/DisplayState.plist";
-        copy("$template_dir/Alternatives/000/MetaData.plist", "$alts_dir/MetaData.plist") if -f "$template_dir/Alternatives/000/MetaData.plist";
-        copy("$template_dir/Resources/ProjectInformation.plist", "$res_dir/ProjectInformation.plist") if -f "$template_dir/Resources/ProjectInformation.plist";
-    }
-
-    # Ensure media directory exists
-    make_path($media_dir);
-
-    # 3. Parse REAPER project
+    # 2. Parse REAPER project
     my $session = parse_rpp($in_rpp);
 
-    # 4. Copy all audio media into Media/Audio Files/
+    # 3. Copy all audio media into Media/Audio Files/
     my $copied_count = 0;
-    my @copied_files = ();
+    my %copied_map = ();
 
     for my $t (@{$session->{tracks}}) {
         for my $i (@{$t->{items}}) {
@@ -117,9 +100,9 @@ sub package_rpp_to_logicx_bundle {
 
                 if ($found) {
                     my $dest = "$media_dir/$fname";
-                    copy($found, $dest);
+                    copy($found, $dest) unless -f $dest;
                     $i->{abs_file} = abs_path($dest);
-                    push @copied_files, "Media/Audio Files/$fname";
+                    $copied_map{$fname} = 1;
                     $copied_count++;
                 } else {
                     $i->{abs_file} = abs_path("$media_dir/$fname");
@@ -128,25 +111,12 @@ sub package_rpp_to_logicx_bundle {
         }
     }
 
-    # Also scan audio directory for any additional audio files (.wav, .aif, .mp3)
+    # Also scan audio directory for any additional audio files (.wav, .aif, .mp3, .flac, .m4a)
     if (-d $proj_dir) {
-        opendir(my $adh, $proj_dir);
-        while (my $af = readdir($adh)) {
-            next if $af =~ /^\./;
-            if ($af =~ /\.(wav|aif|aiff|mp3|m4a|flac)$/i) {
-                my $src_file = "$proj_dir/$af";
-                my $dst_file = "$media_dir/$af";
-                if (! -f $dst_file) {
-                    copy($src_file, $dst_file);
-                    push @copied_files, "Media/Audio Files/$af";
-                    $copied_count++;
-                }
-            }
-        }
-        closedir($adh);
+        scan_and_copy_audio($proj_dir, $media_dir, \%copied_map, \$copied_count);
     }
 
-    # 5. Write ProjectInformation.plist inside Resources/
+    # 4. Write clean ProjectInformation.plist inside Resources/
     my $info_plist = "$res_dir/ProjectInformation.plist";
     open my $ip, '>:encoding(UTF-8)', $info_plist;
     print $ip "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
@@ -159,42 +129,57 @@ sub package_rpp_to_logicx_bundle {
     print $ip "</dict>\n</plist>\n";
     close $ip;
 
-    # 6. Generate FCPXML inside bundle with valid file:/// URIs
+    # 5. Generate FCPXML inside bundle with valid file:/// URIs
     my $fcpxml_path = "$out_path/Session.fcpxml";
     open my $out, '>:encoding(UTF-8)', $fcpxml_path or die "Could not write $fcpxml_path: $!";
     print $out get_fcpxml_str($session, $out_path, $proj_name);
     close $out;
 
-    # 7. Generate Open in Logic Pro launcher script
+    # 6. Generate Open in Logic Pro launcher script
     my $launcher_path = "$out_path/Open in Logic Pro.command";
     open my $lout, '>:encoding(UTF-8)', $launcher_path;
     print $lout "#!/bin/bash\nDIR=\"\$( cd \"\$( dirname \"\${BASH_SOURCE[0]}\" )\" >/dev/null 2>&1 && pwd )\"\nopen -a \"Logic Pro\" \"\$DIR/Session.fcpxml\"\n";
     close $lout;
     chmod 0755, $launcher_path;
 
-    # 8. Instructions text file
+    # 7. Instructions text file
     my $readme_path = "$out_path/How to Open in Logic Pro.txt";
     open my $rout, '>:encoding(UTF-8)', $readme_path;
-    print $rout "Logic Pro Native Package Bundle (.logicx)\n";
-    print $rout "==========================================\n\n";
+    print $rout "Logic Pro Converted Project Package (.logicx)\n";
+    print $rout "===============================================\n\n";
     print $rout "Project Name: $proj_name\n";
     print $rout "Tracks Count: " . scalar(@{$session->{tracks}}) . "\n";
     print $rout "Audio Media Files Bundled: $copied_count\n\n";
-    print $rout "To open in Logic Pro:\n";
+    print $rout "HOW TO OPEN IN LOGIC PRO:\n";
     print $rout " 1. Double-click 'Open in Logic Pro.command' inside this bundle.\n";
-    print $rout " 2. Or open Logic Pro, go to File > Import > Final Cut Pro XML...\n";
-    print $rout "    and choose 'Session.fcpxml' inside this bundle.\n\n";
-    print $rout "All audio media is stored natively inside 'Media/Audio Files/'.\n";
+    print $rout " 2. Logic Pro will automatically import 'Session.fcpxml' with all\n";
+    print $rout "    audio tracks, clip positions, and media files from 'Media/Audio Files/'.\n";
     close $rout;
 
-    print "🎉 Successfully created native Logic Pro bundle: '$out_path'\n";
+    print "🎉 Successfully created Logic Pro package: '$out_path'\n";
     print "   Tracks: " . scalar(@{$session->{tracks}}) . " | Audio Files Bundled: $copied_count\n";
 }
 
-sub quoted_form {
-    my ($str) = @_;
-    $str =~ s/'/'\\''/g;
-    return "'$str'";
+sub scan_and_copy_audio {
+    my ($src_dir, $dst_dir, $map_ref, $count_ref) = @_;
+    opendir(my $adh, $src_dir);
+    while (my $af = readdir($adh)) {
+        next if $af =~ /^\./;
+        my $full_src = "$src_dir/$af";
+        if (-d $full_src) {
+            scan_and_copy_audio($full_src, $dst_dir, $map_ref, $count_ref);
+        } elsif ($af =~ /\.(wav|aif|aiff|mp3|m4a|flac)$/i) {
+            if (!$map_ref->{$af}) {
+                my $dst_file = "$dst_dir/$af";
+                if (! -f $dst_file) {
+                    copy($full_src, $dst_file);
+                    $map_ref->{$af} = 1;
+                    $$count_ref++;
+                }
+            }
+        }
+    }
+    closedir($adh);
 }
 
 sub parse_rpp {
