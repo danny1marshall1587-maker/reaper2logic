@@ -1,5 +1,5 @@
 #!/bin/bash
-# Builds native macOS App bundle using osacompile with fixed ICNS app icon and native dialog GUI
+# Builds native macOS App bundle using osacompile with folder selection support
 
 APP_NAME="REAPER to Logic Converter.app"
 BASE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
@@ -17,14 +17,24 @@ on run
         set userChoice to button returned of (display dialog "Welcome to reaper2logic Converter!
 Created by Danny Marshall
 
-Package REAPER project folders into complete Logic Pro (.logicx) bundles.
+Select your REAPER Project Folder or File to package into a Logic Pro (.logicx) bundle:
 
-What would you like to do?" buttons {"Package REAPER Folder to .logicx", "Open Visual Timeline Window", "Cancel"} default button "Package REAPER Folder to .logicx" with title "reaper2logic Converter" with icon path to resource "applet.icns" in bundle (path to me))
+What would you like to select?" buttons {"Select Project Folder", "Select .rpp File", "Open Visual Window"} default button "Select Project Folder" with title "reaper2logic Converter" with icon path to resource "applet.icns" in bundle (path to me))
         
-        if userChoice is "Package REAPER Folder to .logicx" then
-            set chosenFile to (choose file with prompt "Select your REAPER (.rpp) project file inside your project folder:")
+        set posixInput to ""
+        
+        if userChoice is "Select Project Folder" then
+            set chosenFolder to (choose folder with prompt "Select your REAPER Project Folder:")
+            set posixInput to POSIX path of chosenFolder
+        else if userChoice is "Select .rpp File" then
+            set chosenFile to (choose file with prompt "Select your REAPER (.rpp) project file:")
             set posixInput to POSIX path of chosenFile
-            
+        else if userChoice is "Open Visual Window" then
+            do shell script "open " & quoted form of webPage
+            return
+        end if
+        
+        if posixInput is not "" then
             set savePrompt to "Save full Logic Pro Package Bundle (.logicx) to:"
             set defaultName to "MySong.logicx"
             
@@ -44,9 +54,6 @@ Your REAPER project folder has been packaged into a self-contained Logic Pro Bun
 " & posixOutput & "
 
 Double-click 'Open in Logic Pro.command' inside the bundle or import into Logic Pro!" buttons {"OK"} default button "OK" with title "reaper2logic — Bundle Created" with icon path to resource "applet.icns" in bundle (path to me)
-            
-        else if userChoice is "Open Visual Timeline Window" then
-            do shell script "open " & quoted form of webPage
         end if
     on error errMsg number errNum
         if errNum is not -128 then
@@ -79,4 +86,4 @@ rm -f "$APP_NAME/Contents/Resources/Assets.car"
 touch "$APP_NAME"
 rm -f /tmp/app_script.applescript
 
-echo "SUCCESS: Built native macOS Application Bundle '$APP_NAME' with custom icon fixed!"
+echo "SUCCESS: Built native macOS Application Bundle '$APP_NAME' with folder selection support!"
