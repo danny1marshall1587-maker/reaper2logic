@@ -1,5 +1,5 @@
 #!/bin/bash
-# Builds native macOS App bundle using osacompile with fixed ICNS app icon and native dialog GUI
+# Builds native macOS App bundle using osacompile with explicit 2-Step Folder + File selection flow
 
 APP_NAME="REAPER to Logic Converter.app"
 BASE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
@@ -17,31 +17,29 @@ on run
         set userChoice to button returned of (display dialog "Welcome to reaper2logic Converter!
 Created by Danny Marshall
 
-Convert your REAPER project folder into a Logic Pro ready project folder.
+Convert your REAPER project into Logic Pro in 2 simple steps:
+ Step 1: Select your Audio/Media Folder
+ Step 2: Select your REAPER (.rpp) File
 
-Select your input:" buttons {"Select Project Folder", "Select .rpp File", "Open Visual Window"} default button "Select Project Folder" with title "reaper2logic Converter" with icon path to resource "applet.icns" in bundle (path to me))
+Click Start to begin:" buttons {"Start 2-Step Selection (Folder + .rpp)", "Open Visual Window", "Cancel"} default button "Start 2-Step Selection (Folder + .rpp)" with title "reaper2logic Converter" with icon path to resource "applet.icns" in bundle (path to me))
         
-        set posixInput to ""
-        
-        if userChoice is "Select Project Folder" then
-            set chosenFolder to (choose folder with prompt "Select your REAPER Project Folder:")
-            set posixInput to POSIX path of chosenFolder
-        else if userChoice is "Select .rpp File" then
-            set chosenFile to (choose file with prompt "Select your REAPER (.rpp) project file:")
-            set posixInput to POSIX path of chosenFile
-        else if userChoice is "Open Visual Window" then
-            do shell script "open " & quoted form of webPage
-            return
-        end if
-        
-        if posixInput is not "" then
+        if userChoice is "Start 2-Step Selection (Folder + .rpp)" then
+            -- STEP 1: Select Audio Folder
+            set chosenFolder to (choose folder with prompt "STEP 1 of 2: Select your REAPER Audio Folder (containing your audio files/stems):")
+            set posixFolder to POSIX path of chosenFolder
+            
+            -- STEP 2: Select RPP File
+            set chosenFile to (choose file with prompt "STEP 2 of 2: Select your REAPER (.rpp) project file:")
+            set posixFile to POSIX path of chosenFile
+            
+            -- STEP 3: Choose Output Save Location (ONLY AFTER STEP 1 AND 2 ARE DONE)
             set savePrompt to "Save Logic Pro Converted Project Folder to:"
             set defaultName to "Converted_Logic_Project"
             
             set targetFile to (choose file name with prompt savePrompt default name defaultName)
             set posixOutput to POSIX path of targetFile
             
-            set cmd to "perl " & quoted form of perlScript & " " & quoted form of posixInput & " " & quoted form of posixOutput
+            set cmd to "perl " & quoted form of perlScript & " " & quoted form of posixFile & " " & quoted form of posixFolder & " " & quoted form of posixOutput
             do shell script cmd
             
             display dialog "🎉 Success!
@@ -50,6 +48,9 @@ Your REAPER project folder has been converted for Logic Pro:
 " & posixOutput & "
 
 Double-click 'Open in Logic Pro.command' inside the output folder, or open Logic Pro and choose File > Import > Final Cut Pro XML... and select 'Session.fcpxml'!" buttons {"OK"} default button "OK" with title "reaper2logic — Conversion Complete" with icon path to resource "applet.icns" in bundle (path to me)
+            
+        else if userChoice is "Open Visual Window" then
+            do shell script "open " & quoted form of webPage
         end if
     on error errMsg number errNum
         if errNum is not -128 then
@@ -82,4 +83,4 @@ rm -f "$APP_NAME/Contents/Resources/Assets.car"
 touch "$APP_NAME"
 rm -f /tmp/app_script.applescript
 
-echo "SUCCESS: Built native macOS Application Bundle '$APP_NAME' with valid Logic Pro FCPXML engine!"
+echo "SUCCESS: Built native macOS Application Bundle '$APP_NAME' with 2-step selection flow!"
