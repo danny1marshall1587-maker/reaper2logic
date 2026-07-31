@@ -1,0 +1,44 @@
+<REAPER_PROJECT 0.1 "7.0/macOS" 1700000000
+  TEMPO 128 4 4
+  MARKER 1 0.000 "Intro" 0 0 1
+  MARKER 2 16.000 "Chorus" 0 0 1
+  <TRACK
+    NAME "Drums"
+    VOLPAN 0.9 0.0 1.0 -1.0
+    PEAKCOL 16711680
+    <ITEM
+      POSITION 0.000000
+      LENGTH 8.000000
+      NAME "Drum_Loop.wav"
+      VOLPAN 1.0 0.0 1.0 -1.0
+      FADEIN 1 0.050000 0 1 0 0
+      FADEOUT 1 0.100000 0 1 0 0
+      <SOURCE WAVE
+        FILE "audio/Drum_Loop.wav"
+      >
+    >
+    <ITEM
+      POSITION 8.000000
+      LENGTH 8.000000
+      NAME "Drum_Loop.wav"
+      VOLPAN 1.0 0.0 1.0 -1.0
+      <SOURCE WAVE
+        FILE "audio/Drum_Loop.wav"
+      >
+    >
+  >
+  <TRACK
+    NAME "Lead Vocal"
+    VOLPAN 1.0 0.1 1.0 -1.0
+    <ITEM
+      POSITION 4.000000
+      LENGTH 12.000000
+      NAME "Vocal_Take1.wav"
+      SOFFS 2.000000
+      VOLPAN 0.8 0.0 1.0 -1.0
+      <SOURCE WAVE
+        FILE "audio/Vocal_Take1.wav"
+      >
+    >
+  >
+>
