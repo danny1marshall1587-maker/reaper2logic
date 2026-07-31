@@ -1,5 +1,5 @@
 #!/bin/bash
-# Builds native macOS App bundle using osacompile with explicit 2-Step Folder + File selection flow
+# Builds native macOS App bundle using osacompile with ad-hoc codesigning and Gatekeeper fix
 
 APP_NAME="REAPER to Logic Converter.app"
 BASE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
@@ -80,7 +80,11 @@ rm -f "$APP_NAME/Contents/Resources/Assets.car"
 /usr/libexec/PlistBuddy -c "Delete :CFBundleIconName" "$APP_NAME/Contents/Info.plist" 2>/dev/null
 /usr/libexec/PlistBuddy -c "Set :CFBundleIconFile applet.icns" "$APP_NAME/Contents/Info.plist" 2>/dev/null || /usr/libexec/PlistBuddy -c "Add :CFBundleIconFile string applet.icns" "$APP_NAME/Contents/Info.plist"
 
+# Strip quarantine attributes & perform ad-hoc code signing for Gatekeeper
+xattr -cr "$APP_NAME"
+codesign --force --deep -s - "$APP_NAME" 2>/dev/null
+
 touch "$APP_NAME"
 rm -f /tmp/app_script.applescript
 
-echo "SUCCESS: Built native macOS Application Bundle '$APP_NAME' with 2-step selection flow!"
+echo "SUCCESS: Built native macOS Application Bundle '$APP_NAME' with ad-hoc code signing!"
