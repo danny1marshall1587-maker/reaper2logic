@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>REAPER ↔ Logic Pro Project Converter</title>
-  <meta name="description" content="Free online bidirectional project file converter between REAPER (.rpp) and Logic Pro (FCPXML / AAF). Preserve track hierarchy, audio clip alignment, fades, tempo maps, and markers.">
+  <title>reaper2logic — REAPER ↔ Logic Pro Converter</title>
+  <meta name="description" content="Free online bidirectional project file converter between REAPER (.rpp) and Logic Pro (FCPXML / AAF). Preserve track hierarchy, audio clip alignment, fades, tempo maps, and markers. Created by Danny Marshall.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -16,23 +16,56 @@
     <!-- Header -->
     <header class="app-header">
       <div class="brand">
-        <div class="logo-icon">
-          <i data-lucide="repeat"></i>
+        <div class="logo-wrapper">
+          <img src="app_icon.jpg" alt="reaper2logic App Icon" class="app-logo-img rotating-glow" />
         </div>
         <div class="brand-text">
-          <h1>REAPER <span class="accent-text">↔</span> Logic Pro</h1>
-          <p class="subtitle">Bidirectional DAW Project Converter & Timeline Inspector</p>
+          <h1>reaper2logic <span class="accent-text">v1.0</span></h1>
+          <p class="subtitle">Bidirectional REAPER ↔ Logic Pro Converter • By Danny Marshall</p>
         </div>
       </div>
       <div class="header-actions">
         <div class="status-badge">
-          <span class="pulse-dot"></span> 100% Client-Side & Private
+          <span class="pulse-dot"></span> macOS App & Web
         </div>
         <button id="btn-load-demo" class="btn btn-secondary">
-          <i data-lucide="sparkles"></i> Load Sample Demo
+          <i data-lucide="sparkles"></i> Load Sample Song
         </button>
       </div>
     </header>
+
+    <!-- Visual Interactive 3-Step Guide Banner -->
+    <section class="quick-guide-banner glass-panel">
+      <div class="banner-title">
+        <i data-lucide="compass"></i>
+        <span>How to Use reaper2logic in 3 Simple Steps</span>
+      </div>
+      <div class="guide-flow">
+        <div class="flow-step">
+          <div class="step-num">1</div>
+          <div class="step-content">
+            <h4>Select Mode & Load Project</h4>
+            <p>Choose <strong>REAPER → Logic</strong> or <strong>Logic → REAPER</strong> below, then drag & drop your <code>.rpp</code> or <code>.fcpxml</code> file.</p>
+          </div>
+        </div>
+        <div class="flow-arrow"><i data-lucide="chevron-right"></i></div>
+        <div class="flow-step">
+          <div class="step-num">2</div>
+          <div class="step-content">
+            <h4>Inspect & Convert</h4>
+            <p>Visualise multi-track layout, audio clip positions, volume, pan, markers, and tempo map in the live visualizer.</p>
+          </div>
+        </div>
+        <div class="flow-arrow"><i data-lucide="chevron-right"></i></div>
+        <div class="flow-step">
+          <div class="step-num">3</div>
+          <div class="step-content">
+            <h4>Import into Target DAW</h4>
+            <p>In Logic Pro: <code>File &gt; Import &gt; Final Cut Pro XML...</code><br>In REAPER: <code>File &gt; Open Project...</code></p>
+          </div>
+        </div>
+      </div>
+    </section>
 
     <!-- Main Content -->
     <main class="main-content">
@@ -217,13 +250,12 @@
 
     <!-- Footer -->
     <footer class="app-footer">
-      <p>REAPER ↔ Logic Pro Converter • Designed for Seamless DAW File Travel</p>
+      <p>reaper2logic • Created by Danny Marshall • Seamless REAPER ↔ Logic Pro DAW Travel</p>
     </footer>
   </div>
 
   <script src="app.js"></script>
   <script>
-    // Initialize Lucide icons
     lucide.createIcons();
   </script>
 </body>
