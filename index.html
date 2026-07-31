@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>REAPER ↔ Logic Pro Project Converter</title>
+  <meta name="description" content="Free online bidirectional project file converter between REAPER (.rpp) and Logic Pro (FCPXML / AAF). Preserve track hierarchy, audio clip alignment, fades, tempo maps, and markers.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="brand">
+        <div class="logo-icon">
+          <i data-lucide="repeat"></i>
+        </div>
+        <div class="brand-text">
+          <h1>REAPER <span class="accent-text">↔</span> Logic Pro</h1>
+          <p class="subtitle">Bidirectional DAW Project Converter & Timeline Inspector</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <div class="status-badge">
+          <span class="pulse-dot"></span> 100% Client-Side & Private
+        </div>
+        <button id="btn-load-demo" class="btn btn-secondary">
+          <i data-lucide="sparkles"></i> Load Sample Demo
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Converter Grid -->
+      <section class="converter-section">
+        <!-- Direction Selector Tabs -->
+        <div class="tab-controls">
+          <button id="tab-rpp2logic" class="tab-btn active" data-mode="rpp2logic">
+            <i data-lucide="arrow-right-left"></i>
+            <span>REAPER (.rpp) → Logic Pro (.fcpxml)</span>
+          </button>
+          <button id="tab-logic2rpp" class="tab-btn" data-mode="logic2rpp">
+            <i data-lucide="arrow-left-right"></i>
+            <span>Logic Pro (.fcpxml) → REAPER (.rpp)</span>
+          </button>
+        </div>
+
+        <!-- Drag & Drop Zone -->
+        <div id="drop-zone" class="drop-zone">
+          <input type="file" id="file-input" accept=".rpp,.fcpxml,.xml" hidden />
+          <div class="drop-zone-content">
+            <div class="upload-icon-wrapper">
+              <i data-lucide="upload-cloud" class="upload-icon"></i>
+            </div>
+            <h3 id="drop-title">Drop your REAPER project (.rpp) here</h3>
+            <p id="drop-subtitle">or click to browse files from your computer</p>
+            <div class="supported-formats">
+              <span class="format-pill">.rpp (REAPER)</span>
+              <span class="format-pill">.fcpxml (Logic Export)</span>
+              <span class="format-pill">.xml (FCP XML)</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Mode Instructions Box -->
+        <div class="info-box glass-panel">
+          <div class="info-header">
+            <i data-lucide="info"></i>
+            <h4 id="info-box-title">How REAPER to Logic Pro conversion works</h4>
+          </div>
+          <p id="info-box-body">
+            This tool parses REAPER project structure into an Apple-compatible <strong>Final Cut Pro XML (.fcpxml)</strong>. In Logic Pro, simply navigate to <code>File &gt; Import &gt; Final Cut Pro XML...</code> to automatically recreate all tracks, items, alignment, sample offsets, gain, tempo maps, and markers!
+          </p>
+        </div>
+      </section>
+
+      <!-- Project Session Inspector & Visualizer -->
+      <section id="session-section" class="session-section glass-panel hidden">
+        <!-- Project Stats Overview Bar -->
+        <div class="session-header">
+          <div class="project-info">
+            <h2 id="proj-name">Project Title</h2>
+            <div class="project-meta">
+              <span id="meta-tempo" class="meta-tag"><i data-lucide="activity"></i> 120.0 BPM</span>
+              <span id="meta-tracks" class="meta-tag"><i data-lucide="layers"></i> 0 Tracks</span>
+              <span id="meta-items" class="meta-tag"><i data-lucide="disc"></i> 0 Items</span>
+              <span id="meta-markers" class="meta-tag"><i data-lucide="bookmark"></i> 0 Markers</span>
+              <span id="meta-duration" class="meta-tag"><i data-lucide="clock"></i> 00:00</span>
+            </div>
+          </div>
+          <div class="export-actions">
+            <button id="btn-export-primary" class="btn btn-primary">
+              <i data-lucide="download"></i> Download Converted Project
+            </button>
+            <button id="btn-export-summary" class="btn btn-secondary">
+              <i data-lucide="file-text"></i> Export Summary
+            </button>
+          </div>
+        </div>
+
+        <!-- Session Tabs: Timeline Visualizer / Track List / Markers / Instructions -->
+        <div class="session-nav">
+          <button class="snav-btn active" data-target="view-timeline">
+            <i data-lucide="sliders"></i> Timeline Visualizer
+          </button>
+          <button class="snav-btn" data-target="view-tracks">
+            <i data-lucide="list"></i> Track Manager (<span id="count-tracks">0</span>)
+          </button>
+          <button class="snav-btn" data-target="view-markers">
+            <i data-lucide="map-pin"></i> Markers & Tempo Map (<span id="count-markers">0</span>)
+          </button>
+          <button class="snav-btn" data-target="view-help">
+            <i data-lucide="help-circle"></i> DAW Import Guide
+          </button>
+        </div>
+
+        <!-- View 1: Timeline Visualizer -->
+        <div id="view-timeline" class="view-panel active">
+          <div class="timeline-container">
+            <!-- Timeline Time Ruler -->
+            <div id="timeline-ruler" class="timeline-ruler">
+              <div class="ruler-lane-header">Time</div>
+              <div id="ruler-ticks" class="ruler-ticks"></div>
+            </div>
+            <!-- Marker Overlay -->
+            <div id="marker-overlay" class="marker-overlay"></div>
+            <!-- Track Lanes -->
+            <div id="timeline-tracks" class="timeline-tracks"></div>
+          </div>
+        </div>
+
+        <!-- View 2: Track List Table -->
+        <div id="view-tracks" class="view-panel hidden">
+          <div class="table-responsive">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Color</th>
+                  <th>Track Name</th>
+                  <th>Volume</th>
+                  <th>Pan</th>
+                  <th>State</th>
+                  <th>Items Count</th>
+                </tr>
+              </thead>
+              <tbody id="tracks-table-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- View 3: Markers & Tempo Map -->
+        <div id="view-markers" class="view-panel hidden">
+          <div class="grid-2-col">
+            <div class="sub-panel">
+              <h3><i data-lucide="bookmark"></i> Markers</h3>
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Time Position</th>
+                    <th>Marker Name</th>
+                  </tr>
+                </thead>
+                <tbody id="markers-table-body"></tbody>
+              </table>
+            </div>
+            <div class="sub-panel">
+              <h3><i data-lucide="activity"></i> Tempo & Time Signatures</h3>
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Position</th>
+                    <th>BPM</th>
+                    <th>Time Sig</th>
+                  </tr>
+                </thead>
+                <tbody id="tempo-table-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- View 4: DAW Import Instructions Guide -->
+        <div id="view-help" class="view-panel hidden">
+          <div class="guide-cards">
+            <div class="guide-card">
+              <div class="guide-badge logic">Logic Pro</div>
+              <h3>Importing into Logic Pro</h3>
+              <ol class="guide-steps">
+                <li>Download the generated <code>.fcpxml</code> file.</li>
+                <li>Launch <strong>Logic Pro</strong> on macOS.</li>
+                <li>Go to <code>File &gt; Import &gt; Final Cut Pro XML...</code></li>
+                <li>Choose the downloaded <code>.fcpxml</code> file.</li>
+                <li>Logic Pro will automatically reconstruct your tracks, audio clips, timeline placement, volume, and markers!</li>
+              </ol>
+            </div>
+            <div class="guide-card">
+              <div class="guide-badge reaper">REAPER</div>
+              <h3>Importing into REAPER</h3>
+              <ol class="guide-steps">
+                <li>Download the generated <code>.rpp</code> file.</li>
+                <li>Launch <strong>REAPER</strong>.</li>
+                <li>Go to <code>File &gt; Open Project...</code> or double-click the <code>.rpp</code> file.</li>
+                <li>If prompted for audio files, select your project media folder.</li>
+                <li>All tracks, items, fades, pan, volume, and tempo map will load into REAPER.</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <p>REAPER ↔ Logic Pro Converter • Designed for Seamless DAW File Travel</p>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+  <script>
+    // Initialize Lucide icons
+    lucide.createIcons();
+  </script>
+</body>
+</html>
