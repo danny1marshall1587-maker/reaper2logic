@@ -17,32 +17,33 @@ on run
         set userChoice to button returned of (display dialog "Welcome to reaper2logic Converter!
 Created by Danny Marshall
 
-Convert project files between REAPER (.rpp) and Logic Pro (.fcpxml).
+Package REAPER project folders into complete Logic Pro (.logicx) bundles.
 
-Choose an option below:" buttons {"Choose Project File & Convert", "Open Visual Timeline Window", "Cancel"} default button "Choose Project File & Convert" with title "reaper2logic Converter" with icon path to resource "applet.icns" in bundle (path to me))
+What would you like to do?" buttons {"Package REAPER Folder to .logicx", "Open Visual Timeline Window", "Cancel"} default button "Package REAPER Folder to .logicx" with title "reaper2logic Converter" with icon path to resource "applet.icns" in bundle (path to me))
         
-        if userChoice is "Choose Project File & Convert" then
-            set chosenFile to (choose file with prompt "Select your REAPER (.rpp) or Logic Pro (.fcpxml) project file:")
+        if userChoice is "Package REAPER Folder to .logicx" then
+            set chosenFile to (choose file with prompt "Select your REAPER (.rpp) project file inside your project folder:")
             set posixInput to POSIX path of chosenFile
             
-            if posixInput ends with ".rpp" then
-                set savePrompt to "Save converted Logic Pro project (.fcpxml) as:"
-                set defaultName to "Converted_Project.fcpxml"
-            else
-                set savePrompt to "Save converted REAPER project (.rpp) as:"
-                set defaultName to "Converted_Project.rpp"
-            end if
+            set savePrompt to "Save full Logic Pro Package Bundle (.logicx) to:"
+            set defaultName to "MySong.logicx"
             
             set targetFile to (choose file name with prompt savePrompt default name defaultName)
             set posixOutput to POSIX path of targetFile
+            
+            if posixOutput does not end with ".logicx" then
+                set posixOutput to posixOutput & ".logicx"
+            end if
             
             set cmd to "perl " & quoted form of perlScript & " " & quoted form of posixInput & " " & quoted form of posixOutput
             do shell script cmd
             
             display dialog "🎉 Success!
 
-Converted project file has been saved to:
-" & posixOutput buttons {"OK"} default button "OK" with title "reaper2logic — Conversion Complete" with icon path to resource "applet.icns" in bundle (path to me)
+Your REAPER project folder has been packaged into a self-contained Logic Pro Bundle:
+" & posixOutput & "
+
+Double-click 'Open in Logic Pro.command' inside the bundle or import into Logic Pro!" buttons {"OK"} default button "OK" with title "reaper2logic — Bundle Created" with icon path to resource "applet.icns" in bundle (path to me)
             
         else if userChoice is "Open Visual Timeline Window" then
             do shell script "open " & quoted form of webPage
