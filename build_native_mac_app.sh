@@ -1,5 +1,5 @@
 #!/bin/bash
-# Builds native macOS App bundle using osacompile and embeds custom ICNS app icon
+# Builds native macOS App bundle using osacompile with fixed ICNS app icon and native dialog GUI
 
 APP_NAME="REAPER to Logic Converter.app"
 BASE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
@@ -19,17 +19,17 @@ Created by Danny Marshall
 
 Convert project files between REAPER (.rpp) and Logic Pro (.fcpxml).
 
-What would you like to do?" buttons {"Choose File to Convert & Save", "Open Interactive Visualizer", "Cancel"} default button "Choose File to Convert & Save" with title "reaper2logic Converter")
+Choose an option below:" buttons {"Choose Project File & Convert", "Open Visual Timeline Window", "Cancel"} default button "Choose Project File & Convert" with title "reaper2logic Converter" with icon path to resource "applet.icns" in bundle (path to me))
         
-        if userChoice is "Choose File to Convert & Save" then
+        if userChoice is "Choose Project File & Convert" then
             set chosenFile to (choose file with prompt "Select your REAPER (.rpp) or Logic Pro (.fcpxml) project file:")
             set posixInput to POSIX path of chosenFile
             
             if posixInput ends with ".rpp" then
-                set savePrompt to "Save converted Logic Pro project (.fcpxml) to:"
+                set savePrompt to "Save converted Logic Pro project (.fcpxml) as:"
                 set defaultName to "Converted_Project.fcpxml"
             else
-                set savePrompt to "Save converted REAPER project (.rpp) to:"
+                set savePrompt to "Save converted REAPER project (.rpp) as:"
                 set defaultName to "Converted_Project.rpp"
             end if
             
@@ -41,10 +41,10 @@ What would you like to do?" buttons {"Choose File to Convert & Save", "Open Inte
             
             display dialog "🎉 Success!
 
-Converted project has been saved to:
-" & posixOutput buttons {"OK"} default button "OK" with title "reaper2logic — Conversion Complete"
+Converted project file has been saved to:
+" & posixOutput buttons {"OK"} default button "OK" with title "reaper2logic — Conversion Complete" with icon path to resource "applet.icns" in bundle (path to me)
             
-        else if userChoice is "Open Interactive Visualizer" then
+        else if userChoice is "Open Visual Timeline Window" then
             do shell script "open " & quoted form of webPage
         end if
     on error errMsg number errNum
@@ -60,15 +60,13 @@ osacompile -o "$APP_NAME" /tmp/app_script.applescript
 
 # Bundle Resources inside .app
 cp app_icon.icns "$APP_NAME/Contents/Resources/app_icon.icns"
+cp app_icon.icns "$APP_NAME/Contents/Resources/applet.icns"
 cp daw_converter.pl "$APP_NAME/Contents/Resources/daw_converter.pl"
 cp index.html "$APP_NAME/Contents/Resources/index.html"
 cp styles.css "$APP_NAME/Contents/Resources/styles.css"
 cp app.js "$APP_NAME/Contents/Resources/app.js"
 cp app_icon.jpg "$APP_NAME/Contents/Resources/app_icon.jpg"
 chmod +x "$APP_NAME/Contents/Resources/daw_converter.pl"
-
-# Update Info.plist with icon
-/usr/libexec/PlistBuddy -c "Add :CFBundleIconFile string app_icon" "$APP_NAME/Contents/Info.plist" 2>/dev/null || /usr/libexec/PlistBuddy -c "Set :CFBundleIconFile app_icon" "$APP_NAME/Contents/Info.plist"
 
 touch "$APP_NAME"
 rm -f /tmp/app_script.applescript
