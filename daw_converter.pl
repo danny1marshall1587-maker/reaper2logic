@@ -12,31 +12,46 @@ my $input = $ARGV[0];
 my $output = $ARGV[1];
 
 if (!$input) {
-    print "Usage: daw_converter.pl <input_file.rpp> [<output_bundle.logicx>]\n";
+    print "Usage: daw_converter.pl <input_file_or_folder> [<output_bundle.logicx>]\n";
     exit 1;
 }
 
 if (! -e $input) {
-    print "Error: Input file '$input' not found.\n";
+    print "Error: Input '$input' not found.\n";
     exit 1;
 }
 
-my ($filename, $dirs, $suffix) = fileparse($input, qr/\.[^.]*/);
+my $rpp_file = "";
+my $in_dir = "";
 
-if (lc($suffix) eq '.rpp') {
-    $output ||= "$filename.logicx";
-    $output .= ".logicx" unless $output =~ /\.logicx$/i;
-    package_rpp_to_logicx($input, $output);
+if (-d $input) {
+    $in_dir = $input;
+    # Search for .rpp file in directory
+    opendir(my $dh, $input) or die "Cannot open directory $input: $!";
+    my @rpp_files = grep { /\.rpp$/i } readdir($dh);
+    closedir($dh);
+
+    if (@rpp_files == 0) {
+        print "Error: No REAPER project (.rpp) file found inside directory '$input'\n";
+        exit 1;
+    }
+    $rpp_file = "$input/$rpp_files[0]";
 } else {
-    print "Error: Input file must be a REAPER project file (.rpp)\n";
-    exit 1;
+    $rpp_file = $input;
+    $in_dir = dirname($input);
 }
+
+my ($filename, $dirs, $suffix) = fileparse($rpp_file, qr/\.[^.]*/);
+
+$output ||= "$in_dir/$filename.logicx";
+$output .= ".logicx" unless $output =~ /\.logicx$/i;
+
+package_rpp_to_logicx($rpp_file, $in_dir, $output, $filename);
 
 sub package_rpp_to_logicx {
-    my ($in_path, $out_bundle) = @_;
-    my $in_dir = dirname($in_path);
+    my ($in_rpp, $proj_dir, $out_bundle, $proj_name) = @_;
 
-    open my $fh, '<:encoding(UTF-8)', $in_path or die "Could not open $in_path: $!";
+    open my $fh, '<:encoding(UTF-8)', $in_rpp or die "Could not open $in_rpp: $!";
     
     my $tempo = 120.0;
     my @markers = ();
@@ -100,10 +115,11 @@ sub package_rpp_to_logicx {
             if ($i->{file}) {
                 my $fname = basename($i->{file});
                 my @candidates = (
-                    "$in_dir/$i->{file}",
-                    "$in_dir/$fname",
-                    "$in_dir/audio/$fname",
-                    "$in_dir/media/$fname"
+                    "$proj_dir/$i->{file}",
+                    "$proj_dir/$fname",
+                    "$proj_dir/audio/$fname",
+                    "$proj_dir/media/$fname",
+                    "$proj_dir/Audio Files/$fname"
                 );
                 
                 my $found = undef;
@@ -148,8 +164,8 @@ sub package_rpp_to_logicx {
     }
     print $out "  </resources>\n";
     print $out "  <library>\n";
-    print $out "    <event name=\"$filename\">\n";
-    print $out "      <project name=\"$filename\">\n";
+    print $out "    <event name=\"$proj_name\">\n";
+    print $out "      <project name=\"$proj_name\">\n";
     print $out "        <sequence duration=\"300.000s\" format=\"r1\" tcStart=\"0s\" tcFormat=\"NDF\">\n";
     print $out "          <spine>\n";
 
