@@ -1,5 +1,5 @@
 #!/bin/bash
-# Builds native macOS App bundle using osacompile with folder selection support
+# Builds native macOS App bundle using osacompile with fixed ICNS app icon and native dialog GUI
 
 APP_NAME="REAPER to Logic Converter.app"
 BASE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
@@ -17,9 +17,9 @@ on run
         set userChoice to button returned of (display dialog "Welcome to reaper2logic Converter!
 Created by Danny Marshall
 
-Select your REAPER Project Folder or File to package into a Logic Pro (.logicx) bundle:
+Convert your REAPER project folder into a Logic Pro ready project folder.
 
-What would you like to select?" buttons {"Select Project Folder", "Select .rpp File", "Open Visual Window"} default button "Select Project Folder" with title "reaper2logic Converter" with icon path to resource "applet.icns" in bundle (path to me))
+Select your input:" buttons {"Select Project Folder", "Select .rpp File", "Open Visual Window"} default button "Select Project Folder" with title "reaper2logic Converter" with icon path to resource "applet.icns" in bundle (path to me))
         
         set posixInput to ""
         
@@ -35,25 +35,21 @@ What would you like to select?" buttons {"Select Project Folder", "Select .rpp F
         end if
         
         if posixInput is not "" then
-            set savePrompt to "Save full Logic Pro Package Bundle (.logicx) to:"
-            set defaultName to "MySong.logicx"
+            set savePrompt to "Save Logic Pro Converted Project Folder to:"
+            set defaultName to "Converted_Logic_Project"
             
             set targetFile to (choose file name with prompt savePrompt default name defaultName)
             set posixOutput to POSIX path of targetFile
-            
-            if posixOutput does not end with ".logicx" then
-                set posixOutput to posixOutput & ".logicx"
-            end if
             
             set cmd to "perl " & quoted form of perlScript & " " & quoted form of posixInput & " " & quoted form of posixOutput
             do shell script cmd
             
             display dialog "🎉 Success!
 
-Your REAPER project folder has been packaged into a self-contained Logic Pro Bundle:
+Your REAPER project folder has been converted for Logic Pro:
 " & posixOutput & "
 
-Double-click 'Open in Logic Pro.command' inside the bundle or import into Logic Pro!" buttons {"OK"} default button "OK" with title "reaper2logic — Bundle Created" with icon path to resource "applet.icns" in bundle (path to me)
+Double-click 'Open in Logic Pro.command' inside the output folder, or open Logic Pro and choose File > Import > Final Cut Pro XML... and select 'Session.fcpxml'!" buttons {"OK"} default button "OK" with title "reaper2logic — Conversion Complete" with icon path to resource "applet.icns" in bundle (path to me)
         end if
     on error errMsg number errNum
         if errNum is not -128 then
@@ -86,4 +82,4 @@ rm -f "$APP_NAME/Contents/Resources/Assets.car"
 touch "$APP_NAME"
 rm -f /tmp/app_script.applescript
 
-echo "SUCCESS: Built native macOS Application Bundle '$APP_NAME' with folder selection support!"
+echo "SUCCESS: Built native macOS Application Bundle '$APP_NAME' with valid Logic Pro FCPXML engine!"
