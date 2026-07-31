@@ -57,7 +57,7 @@ $out_bundle .= ".logicx" unless $out_bundle =~ /\.logicx$/i;
 
 package_rpp_to_logicx_bundle($rpp_file, $audio_dir, $out_bundle, $filename);
 
-sub package_rpp_to_logic_bundle {
+sub package_rpp_to_logicx_bundle {
     my ($in_rpp, $proj_dir, $out_path, $proj_name) = @_;
 
     my $script_dir = dirname(abs_path($0));
@@ -75,7 +75,7 @@ sub package_rpp_to_logic_bundle {
 
     # 2. Copy genuine Logic Pro ProjectData & template structure if available
     if (-f $template_tgz) {
-        system("tar -xzf quoted_form($template_tgz) -C quoted_form($out_path) 2>/dev/null");
+        system("tar -xzf " . quoted_form($template_tgz) . " -C " . quoted_form($out_path) . " 2>/dev/null");
     } elsif (-d $template_dir) {
         copy("$template_dir/Alternatives/000/ProjectData", "$alts_dir/ProjectData") if -f "$template_dir/Alternatives/000/ProjectData";
         copy("$template_dir/Alternatives/000/DisplayState.plist", "$alts_dir/DisplayState.plist") if -f "$template_dir/Alternatives/000/DisplayState.plist";
