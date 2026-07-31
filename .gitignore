@@ -1,0 +1,24 @@
+# macOS system files
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+venv/
+
+# Build artifacts
+dist/
+build/
+*.app/
+
+# Converted test output
+*.fcpxml
+!test_session.rpp
+*_summary.txt
+*.tmp
