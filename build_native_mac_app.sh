@@ -1,5 +1,5 @@
 #!/bin/bash
-# Builds native macOS App bundle using osacompile with ad-hoc codesigning and Gatekeeper fix
+# Builds native macOS App bundle using osacompile with genuine Logic Pro project template
 
 APP_NAME="REAPER to Logic Converter.app"
 BASE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
@@ -33,8 +33,8 @@ Click Start to begin:" buttons {"Start 2-Step Selection (Folder + .rpp)", "Open 
             set posixFile to POSIX path of chosenFile
             
             -- STEP 3: Choose Output Save Location (ONLY AFTER STEP 1 AND 2 ARE DONE)
-            set savePrompt to "Save Logic Pro Converted Project Folder to:"
-            set defaultName to "Converted_Logic_Project"
+            set savePrompt to "Save Logic Pro Converted Project Bundle (.logicx) to:"
+            set defaultName to "Converted_Logic_Project.logicx"
             
             set targetFile to (choose file name with prompt savePrompt default name defaultName)
             set posixOutput to POSIX path of targetFile
@@ -44,10 +44,10 @@ Click Start to begin:" buttons {"Start 2-Step Selection (Folder + .rpp)", "Open 
             
             display dialog "🎉 Success!
 
-Your REAPER project folder has been converted for Logic Pro:
+Your REAPER project folder has been converted to a native Logic Pro Bundle:
 " & posixOutput & "
 
-Double-click 'Open in Logic Pro.command' inside the output folder, or open Logic Pro and choose File > Import > Final Cut Pro XML... and select 'Session.fcpxml'!" buttons {"OK"} default button "OK" with title "reaper2logic — Conversion Complete" with icon path to resource "applet.icns" in bundle (path to me)
+Double-click 'Open in Logic Pro.command' inside the bundle or open directly in Logic Pro!" buttons {"OK"} default button "OK" with title "reaper2logic — Conversion Complete" with icon path to resource "applet.icns" in bundle (path to me)
             
         else if userChoice is "Open Visual Window" then
             do shell script "open " & quoted form of webPage
@@ -71,6 +71,7 @@ cp index.html "$APP_NAME/Contents/Resources/index.html"
 cp styles.css "$APP_NAME/Contents/Resources/styles.css"
 cp app.js "$APP_NAME/Contents/Resources/app.js"
 cp app_icon.jpg "$APP_NAME/Contents/Resources/app_icon.jpg"
+cp logic_template.tar.gz "$APP_NAME/Contents/Resources/logic_template.tar.gz" 2>/dev/null
 chmod +x "$APP_NAME/Contents/Resources/daw_converter.pl"
 
 # Remove Assets.car which overrides custom .icns files on macOS 11+
@@ -87,4 +88,4 @@ codesign --force --deep -s - "$APP_NAME" 2>/dev/null
 touch "$APP_NAME"
 rm -f /tmp/app_script.applescript
 
-echo "SUCCESS: Built native macOS Application Bundle '$APP_NAME' with ad-hoc code signing!"
+echo "SUCCESS: Built native macOS Application Bundle '$APP_NAME' with genuine Logic Pro project template!"
