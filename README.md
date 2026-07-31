@@ -4,58 +4,53 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Creator: Danny Marshall](https://img.shields.io/badge/Creator-Danny_Marshall-indigo.svg)](#)
 
-A native macOS & Web application tool created by **Danny Marshall** for converting DAW project files bidirectionally between **REAPER (`.rpp`)** and **Logic Pro (`.fcpxml` / AAF)** for easy file travel between DAWs.
+A native macOS Application & Web tool created by **Danny Marshall** for converting project files bidirectionally between **REAPER (`.rpp`)** and **Logic Pro (`.fcpxml` / AAF)** for easy file travel between DAWs.
 
 ---
 
-## 🌟 Key Features
+## 💡 How REAPER ↔ Logic Pro Conversion Works
 
-- **Bidirectional Project Conversion**:
-  - **REAPER (`.rpp`) ➔ Logic Pro (`.fcpxml`)**: Converts tracks, audio items, timeline placement, source offsets, volume, pan, markers, and tempo maps into Final Cut Pro XML natively importable by Logic Pro.
-  - **Logic Pro (`.fcpxml`) ➔ REAPER (`.rpp`)**: Converts Logic Pro exported XML back into REAPER project files (`.rpp`).
-- **Interactive Multi-Track Timeline Visualizer**: Inspect your tracks, colored audio clips, item boundaries, and markers directly in the browser before converting.
-- **Native macOS App Bundle**: Includes a double-clickable `REAPER to Logic Converter.app` launcher.
-- **Python CLI Tool**: Command-line converter for batch processing (`daw_converter.py`).
-- **100% Client-Side & Private**: No audio files or project data leave your machine.
+Because Logic Pro's `.logicx` bundle is an internal proprietary Apple binary package format, Apple designed **Final Cut Pro XML (`.fcpxml`)** as the official native interchange format for Logic Pro.
+
+1. **REAPER (`.rpp`) ➔ Logic Pro**:
+   - `reaper2logic` parses your REAPER `.rpp` project file (tracks, audio clips, timeline start positions, clip durations, source offsets, volume gain, pan, markers, and tempo maps).
+   - It outputs an Apple-compatible **`Final Cut Pro XML (.fcpxml)`** file.
+   - In **Logic Pro**, select **`File > Import > Final Cut Pro XML...`** and pick the `.fcpxml` file.
+   - Logic Pro will automatically recreate your entire session as a native `.logicx` project with all tracks, aligned audio regions, and timeline markers!
+
+2. **Logic Pro ➔ REAPER (`.rpp`)**:
+   - In Logic Pro, choose **`File > Export > Project to Final Cut Pro XML...`**.
+   - Load the exported `.fcpxml` file into `reaper2logic` to generate a native REAPER `.rpp` project file.
+   - Open the `.rpp` file directly in REAPER!
 
 ---
 
-## 🚀 macOS Quick Start
+## 🌟 Features
 
-### Option A: Launch Native macOS App
-Double-click **`REAPER to Logic Converter.app`** or move it to your `/Applications` folder.
+- **Real Conversion Engine**: Zero dummy/placeholder files. Real S-expression parsing for `.rpp` and DOM/XML parsing for `.fcpxml`.
+- **Native macOS Desktop GUI Application**: Open `REAPER to Logic Converter.app` to select files, convert, and pick destination folders using native macOS file dialogs.
+- **Interactive Multi-Track Timeline Visualizer**: Inspect your tracks, colored audio clips, item boundaries, and markers in your browser.
+- **Zero Dependencies**: Includes a pure Perl engine (`daw_converter.pl`) that runs natively on every macOS system out-of-the-box.
 
-### Option B: Open Interactive Web Interface
-Simply open [`index.html`](index.html) in Safari, Chrome, Edge, or Firefox.
+---
 
-### Option C: Python CLI
-Convert a REAPER project to Logic Pro:
+## 🚀 Quick Start & Installation
+
+### Option A: Install native macOS App (.dmg)
+1. Download **[`reaper2logic.dmg`](https://github.com/danny1marshall1587-maker/reaper2logic/releases/download/v1.0.0/reaper2logic.dmg)**.
+2. Double-click `reaper2logic.dmg` in your Downloads folder.
+3. Drag **REAPER to Logic Converter.app** into your **Applications** folder!
+
+### Option B: Terminal Command Line
+Convert REAPER project to Logic Pro FCPXML:
 ```bash
-python3 daw_converter.py my_reaper_song.rpp -o my_logic_song.fcpxml
+perl daw_converter.pl my_song.rpp my_song.fcpxml
 ```
 
-Convert a Logic Pro export back to REAPER:
+Convert Logic Pro FCPXML to REAPER project:
 ```bash
-python3 daw_converter.py my_logic_export.fcpxml -o my_reaper_song.rpp
+perl daw_converter.pl my_logic_export.fcpxml my_song.rpp
 ```
-
----
-
-## 📥 How to Move Projects Between DAWs
-
-### REAPER ➔ Logic Pro
-1. Open the converter app and select **REAPER (.rpp) → Logic Pro (.fcpxml)**.
-2. Drag and drop your `.rpp` project file.
-3. Click **Download Converted Project** to save your `.fcpxml` file.
-4. Launch **Logic Pro**.
-5. Select **`File > Import > Final Cut Pro XML...`** and pick the `.fcpxml` file.
-6. Logic Pro will automatically populate all tracks, audio regions, sample alignment, and markers into a native Logic Pro session!
-
-### Logic Pro ➔ REAPER
-1. In Logic Pro, select **`File > Export > Project to Final Cut Pro XML...`**.
-2. Drag the exported `.fcpxml` file into the converter app or run `python3 daw_converter.py`.
-3. Download the generated `.rpp` file.
-4. Open **REAPER** and select **`File > Open Project...`**.
 
 ---
 
