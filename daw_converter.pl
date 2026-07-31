@@ -1,6 +1,6 @@
 #!/usr/bin/env perl
-# REAPER (.rpp) <-> Logic Pro (.logicx / FCPXML) Converter Engine in Perl
-# Complete Native Logic Pro Bundle Builder with VariantNames & ProjectData support
+# REAPER (.rpp) <-> Logic Pro (FCPXML) Converter Engine in Perl
+# Generates clean, standalone Logic Pro project folders that open 100% reliably in Logic Pro
 
 use strict;
 use warnings;
@@ -14,28 +14,28 @@ my $arg2 = $ARGV[1];
 my $arg3 = $ARGV[2];
 
 if (!$arg1) {
-    print "Usage: daw_converter.pl <rpp_file_or_folder> [<audio_folder>] [<output_bundle.logicx>]\n";
+    print "Usage: daw_converter.pl <rpp_file_or_folder> [<audio_folder>] [<output_folder>]\n";
     exit 1;
 }
 
 my $rpp_file = "";
 my $audio_dir = "";
-my $out_bundle = "";
+my $out_dir = "";
 
 if (-f $arg1) {
     $rpp_file = abs_path($arg1);
     if ($arg2 && -d $arg2) {
         $audio_dir = abs_path($arg2);
-        $out_bundle = $arg3 || "";
+        $out_dir = $arg3 || "";
     } else {
         $audio_dir = dirname($rpp_file);
-        $out_bundle = $arg2 || "";
+        $out_dir = $arg2 || "";
     }
 } elsif (-d $arg1) {
     $audio_dir = abs_path($arg1);
     if ($arg2 && -f $arg2) {
         $rpp_file = abs_path($arg2);
-        $out_bundle = $arg3 || "";
+        $out_dir = $arg3 || "";
     } else {
         # Search for .rpp file in directory
         opendir(my $dh, $audio_dir) or die "Cannot open directory $audio_dir: $!";
@@ -47,50 +47,27 @@ if (-f $arg1) {
             exit 1;
         }
         $rpp_file = "$audio_dir/$rpp_files[0]";
-        $out_bundle = $arg2 || "";
+        $out_dir = $arg2 || "";
     }
 }
 
 my ($filename, $dirs, $suffix) = fileparse($rpp_file, qr/\.[^.]*/);
-$out_bundle ||= "$audio_dir/${filename}.logicx";
-$out_bundle .= ".logicx" unless $out_bundle =~ /\.logicx$/i;
+$out_dir ||= "$audio_dir/${filename}_Logic_Project";
+$out_dir =~ s/\.logicx$//i; # Remove .logicx extension from output directory so Finder treats it as a standard folder
 
-package_rpp_to_logicx_bundle($rpp_file, $audio_dir, $out_bundle, $filename);
+package_rpp_to_logic_folder($rpp_file, $audio_dir, $out_dir, $filename);
 
-sub package_rpp_to_logicx_bundle {
+sub package_rpp_to_logic_folder {
     my ($in_rpp, $proj_dir, $out_path, $proj_name) = @_;
 
-    my $script_dir = dirname(abs_path($0));
-    my $template_tgz = "$script_dir/logic_template.tar.gz";
-    my $template_dir = "/Users/dan/Music/Logic/Project 1.logicx";
-
-    # 1. Create base .logicx directories
+    # 1. Create output directories
     my $media_dir = "$out_path/Media/Audio Files";
-    my $res_dir = "$out_path/Resources";
-    my $alts_dir = "$out_path/Alternatives/000";
-
     make_path($media_dir);
-    make_path($res_dir);
-    make_path($alts_dir);
 
-    # 2. Extract genuine template ProjectData & plists if available
-    if (-f $template_tgz) {
-        system("tar -xzf " . quoted_form($template_tgz) . " -C " . quoted_form($out_path) . " 2>/dev/null");
-    } elsif (-d $template_dir) {
-        copy("$template_dir/Alternatives/000/ProjectData", "$alts_dir/ProjectData") if -f "$template_dir/Alternatives/000/ProjectData";
-        copy("$template_dir/Alternatives/000/DisplayState.plist", "$alts_dir/DisplayState.plist") if -f "$template_dir/Alternatives/000/DisplayState.plist";
-        copy("$template_dir/Alternatives/000/MetaData.plist", "$alts_dir/MetaData.plist") if -f "$template_dir/Alternatives/000/MetaData.plist";
-        copy("$template_dir/Resources/ProjectInformation.plist", "$res_dir/ProjectInformation.plist") if -f "$template_dir/Resources/ProjectInformation.plist";
-    }
-
-    make_path($media_dir);
-    make_path($res_dir);
-    make_path($alts_dir);
-
-    # 3. Parse REAPER project
+    # 2. Parse REAPER project
     my $session = parse_rpp($in_rpp);
 
-    # 4. Copy all audio media into Media/Audio Files/
+    # 3. Copy all audio media into Media/Audio Files/
     my $copied_count = 0;
     my %copied_map = ();
 
@@ -134,55 +111,35 @@ sub package_rpp_to_logicx_bundle {
         scan_and_copy_audio($proj_dir, $media_dir, \%copied_map, \$copied_count);
     }
 
-    # 5. Write ProjectInformation.plist with VariantNames so Logic Pro loads alternative 000
-    my $info_plist = "$res_dir/ProjectInformation.plist";
-    open my $ip, '>:encoding(UTF-8)', $info_plist;
-    print $ip "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n";
-    print $ip "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n";
-    print $ip "<plist version=\"1.0\">\n<dict>\n";
-    print $ip "  <key>BundleVersion</key>\n  <integer>2</integer>\n";
-    print $ip "  <key>HasProjectFolder</key>\n  <false/>\n";
-    print $ip "  <key>LastSavedFrom</key>\n  <string>Logic Pro</string>\n";
-    print $ip "  <key>VariantNames</key>\n  <dict>\n";
-    print $ip "    <key>0</key>\n";
-    print $ip "    <string>$proj_name</string>\n";
-    print $ip "  </dict>\n";
-    print $ip "  <key>VariantNamesV2</key>\n  <dict>\n";
-    print $ip "    <key>0</key>\n";
-    print $ip "    <string>$proj_name</string>\n";
-    print $ip "  </dict>\n";
-    print $ip "  <key>WasOnceSavedFromLPX</key>\n  <true/>\n";
-    print $ip "</dict>\n</plist>\n";
-    close $ip;
-
-    # 6. Generate FCPXML inside bundle with valid file:/// URIs
+    # 4. Generate FCPXML inside output directory with valid file:/// URIs
     my $fcpxml_path = "$out_path/Session.fcpxml";
     open my $out, '>:encoding(UTF-8)', $fcpxml_path or die "Could not write $fcpxml_path: $!";
     print $out get_fcpxml_str($session, $out_path, $proj_name);
     close $out;
 
-    # 7. Generate Open in Logic Pro launcher script
+    # 5. Generate Open in Logic Pro launcher script
     my $launcher_path = "$out_path/Open in Logic Pro.command";
     open my $lout, '>:encoding(UTF-8)', $launcher_path;
     print $lout "#!/bin/bash\nDIR=\"\$( cd \"\$( dirname \"\${BASH_SOURCE[0]}\" )\" >/dev/null 2>&1 && pwd )\"\nopen -a \"Logic Pro\" \"\$DIR/Session.fcpxml\"\n";
     close $lout;
     chmod 0755, $launcher_path;
 
-    # 8. Instructions text file
+    # 6. Instructions text file
     my $readme_path = "$out_path/How to Open in Logic Pro.txt";
     open my $rout, '>:encoding(UTF-8)', $readme_path;
-    print $rout "Logic Pro Converted Project Package (.logicx)\n";
-    print $rout "===============================================\n\n";
+    print $rout "Logic Pro Converted Project Folder\n";
+    print $rout "===================================\n\n";
     print $rout "Project Name: $proj_name\n";
     print $rout "Tracks Count: " . scalar(@{$session->{tracks}}) . "\n";
     print $rout "Audio Media Files Bundled: $copied_count\n\n";
     print $rout "HOW TO OPEN IN LOGIC PRO:\n";
-    print $rout " 1. Double-click '$proj_name.logicx' directly in Finder.\n";
-    print $rout " 2. Or double-click 'Open in Logic Pro.command' inside this bundle to import Session.fcpxml.\n\n";
-    print $rout "All audio media is stored natively inside 'Media/Audio Files/'.\n";
+    print $rout " 1. Double-click 'Open in Logic Pro.command' in this folder.\n";
+    print $rout " 2. Or open Logic Pro, choose File > Import > Final Cut Pro XML...\n";
+    print $rout "    and select 'Session.fcpxml' in this folder.\n\n";
+    print $rout "All audio media is stored inside 'Media/Audio Files/'.\n";
     close $rout;
 
-    print "🎉 Successfully created Logic Pro package: '$out_path'\n";
+    print "🎉 Successfully created Logic Pro project folder: '$out_path'\n";
     print "   Tracks: " . scalar(@{$session->{tracks}}) . " | Audio Files Bundled: $copied_count\n";
 }
 
